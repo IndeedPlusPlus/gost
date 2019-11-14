@@ -1,6 +1,7 @@
 package gost
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -12,8 +13,10 @@ import (
 	"time"
 
 	"github.com/go-log/log"
-	quic "github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go"
 )
+
+const nextProtoH3 = "h3-34"
 
 type quicSession struct {
 	conn    net.Conn
@@ -21,7 +24,7 @@ type quicSession struct {
 }
 
 func (session *quicSession) GetConn() (*quicConn, error) {
-	stream, err := session.session.OpenStreamSync()
+	stream, err := session.session.OpenStreamSync(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +36,7 @@ func (session *quicSession) GetConn() (*quicConn, error) {
 }
 
 func (session *quicSession) Close() error {
-	return session.session.Close()
+	return session.session.CloseWithError(0, "")
 }
 
 type quicTransporter struct {
@@ -91,9 +94,11 @@ func (tr *quicTransporter) Handshake(conn net.Conn, options ...HandshakeOption) 
 		config = opts.QUICConfig
 	}
 	if config.TLSConfig == nil {
-		config.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+		config.TLSConfig = &tls.Config{InsecureSkipVerify: true, NextProtos: []string{nextProtoH3}}
 	}
-
+	if config.TLSConfig.NextProtos == nil {
+		config.TLSConfig.NextProtos = []string{nextProtoH3}
+	}
 	tr.sessionMutex.Lock()
 	defer tr.sessionMutex.Unlock()
 
@@ -139,13 +144,9 @@ func (tr *quicTransporter) initSession(addr string, conn net.Conn, config *QUICC
 		return nil, err
 	}
 	quicConfig := &quic.Config{
-		HandshakeTimeout: config.Timeout,
+		HandshakeIdleTimeout: config.Timeout,
 		KeepAlive:        config.KeepAlive,
-		IdleTimeout:      config.IdleTimeout,
-		Versions: []quic.VersionNumber{
-			quic.VersionGQUIC43,
-			quic.VersionGQUIC39,
-		},
+		MaxIdleTimeout:   config.IdleTimeout,
 	}
 	session, err := quic.Dial(udpConn, udpAddr, addr, config.TLSConfig, quicConfig)
 	if err != nil {
@@ -180,14 +181,21 @@ func QUICListener(addr string, config *QUICConfig) (Listener, error) {
 		config = &QUICConfig{}
 	}
 	quicConfig := &quic.Config{
-		HandshakeTimeout: config.Timeout,
+		HandshakeIdleTimeout: config.Timeout,
 		KeepAlive:        config.KeepAlive,
-		IdleTimeout:      config.IdleTimeout,
+		MaxIdleTimeout:   config.IdleTimeout,
 	}
 
 	tlsConfig := config.TLSConfig
 	if tlsConfig == nil {
-		tlsConfig = DefaultTLSConfig
+		tlsConfig = &tls.Config{
+			Certificates: DefaultTLSConfig.Certificates,
+			NextProtos:   []string{nextProtoH3},
+		}
+	}
+
+	if tlsConfig.NextProtos == nil {
+		tlsConfig.NextProtos = []string{nextProtoH3}
 	}
 
 	var conn net.PacketConn
@@ -223,7 +231,7 @@ func QUICListener(addr string, config *QUICConfig) (Listener, error) {
 
 func (l *quicListener) listenLoop() {
 	for {
-		session, err := l.ln.Accept()
+		session, err := l.ln.Accept(context.Background())
 		if err != nil {
 			log.Log("[quic] accept:", err)
 			l.errChan <- err
@@ -239,10 +247,10 @@ func (l *quicListener) sessionLoop(session quic.Session) {
 	defer log.Logf("[quic] %s >-< %s", session.RemoteAddr(), session.LocalAddr())
 
 	for {
-		stream, err := session.AcceptStream()
+		stream, err := session.AcceptStream(context.Background())
 		if err != nil {
 			log.Log("[quic] accept stream:", err)
-			session.Close()
+			_ = session.CloseWithError(0, "")
 			return
 		}
 
