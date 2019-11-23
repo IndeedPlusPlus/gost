@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-log/log"
@@ -33,21 +32,9 @@ var (
 )
 
 var (
-	sPool = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, smallBufferSize)
-		},
-	}
-	mPool = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, mediumBufferSize)
-		},
-	}
-	lPool = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, largeBufferSize)
-		},
-	}
+	sPool = newBufferPool(smallBufferSize)
+	mPool = newBufferPool(mediumBufferSize)
+	lPool = newBufferPool(largeBufferSize)
 )
 
 var (
