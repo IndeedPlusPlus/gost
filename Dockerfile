@@ -1,25 +1,13 @@
-FROM --platform=$BUILDPLATFORM golang:1-alpine as builder
+FROM golang:alpine as builder
 
-# Convert TARGETPLATFORM to GOARCH format
-# https://github.com/tonistiigi/xx
-COPY --from=tonistiigi/xx:golang / /
-
-ARG TARGETPLATFORM
-
-RUN apk add --no-cache musl-dev git gcc
-
-ADD . /src
-
-WORKDIR /src
-
+RUN apk add build-base
 ENV GO111MODULE=on
-
-RUN cd cmd/gost && go env && go build -v
+ADD . /go/src/github.com/ginuerzh/gost/
+WORKDIR /go/src/github.com/ginuerzh/gost/cmd/gost
+RUN go install -buildmode=pie -trimpath
 
 FROM alpine:latest
 
-WORKDIR /bin/
+COPY --from=builder /go/bin/gost /usr/local/bin/gost
+ENTRYPOINT ["/usr/local/bin/gost"]
 
-COPY --from=builder /src/cmd/gost/gost .
-
-ENTRYPOINT ["/bin/gost"]
