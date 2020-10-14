@@ -1218,6 +1218,7 @@ func (h *socks5Handler) handleUDPRelay(conn net.Conn, req *gosocks5.Request) {
 
 func (h *socks5Handler) discardClientData(conn net.Conn) (err error) {
 	b := make([]byte, tinyBufferSize)
+	defer zeroBuffer(b)
 	n := 0
 	for {
 		n, err = conn.Read(b) // discard any data from tcp connection

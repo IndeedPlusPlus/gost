@@ -89,6 +89,7 @@ func FakeTCPListener(addr string, cfg *FakeTCPListenConfig) (Listener, error) {
 func (l *fakeTCPListener) listenLoop() {
 	for {
 		b := make([]byte, mediumBufferSize)
+		setZeroingFinalizer(b)
 		n, raddr, err := l.ln.ReadFrom(b)
 		if err != nil {
 			log.Logf("[ftcp] peer -> %s : %s", l.Addr(), err)

@@ -178,7 +178,7 @@ func UDPRedirectListener(addr string, cfg *UDPListenConfig) (Listener, error) {
 
 func (l *udpRedirectListener) Accept() (conn net.Conn, err error) {
 	b := make([]byte, mediumBufferSize)
-
+	setZeroingFinalizer(b)
 	n, raddr, dstAddr, err := tproxy.ReadFromUDP(l.UDPConn, b)
 	if err != nil {
 		log.Logf("[red-udp] %s : %s", l.Addr(), err)

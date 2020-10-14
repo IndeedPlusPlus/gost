@@ -309,6 +309,7 @@ func (c *relayConn) Read(b []byte) (n int, err error) {
 		return io.ReadFull(c.Conn, b[:dlen])
 	}
 	buf := make([]byte, dlen)
+	defer zeroBuffer(buf)
 	_, err = io.ReadFull(c.Conn, buf)
 	n = copy(b, buf)
 	return
@@ -357,6 +358,7 @@ func (c *relayConn) Write(b []byte) (n int, err error) {
 		defer mPool.Put(buf)
 	} else {
 		buf = make([]byte, nsize)
+		defer zeroBuffer(buf)
 	}
 	binary.BigEndian.PutUint16(buf[:2], uint16(len(b)))
 	n = copy(buf[2:], b)

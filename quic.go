@@ -336,6 +336,7 @@ func (conn *quicCipherConn) encrypt(data []byte) ([]byte, error) {
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
+	defer zeroBuffer(nonce)
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
